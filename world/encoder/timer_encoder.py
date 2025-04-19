@@ -41,23 +41,28 @@ class TimerAdapter(nn.Module):
 class TimerEncoder(nn.Module):
     def __init__(
         self,
-        prediction_length,
+        encoder_path,
+        project_dim,
+        train_mode="adapter",
         device="cuda",
     ):
         super(TimerEncoder, self).__init__()
         self.device = device
-        self.prediction_length = prediction_length
+        self.prediction_length = 96
+        self.encoder_dim = 1024
 
-        self.model = AutoModelForCausalLM.from_pretrained('thuml/timer-base-84m', trust_remote_code=True).to(self.device)
-
+        self.model = AutoModelForCausalLM.from_pretrained(encoder_path, trust_remote_code=True).to(self.device)
+        self.adapter = TimerAdapter(self.encoder_dim, project_dim).to(self.device)
+        self.train_mode = train_mode    
     def forward(self, x): 
         
         outputs = self.model.forward(x, output_hidden_states=True)
-        
-        return outputs.hidden_states[-1]
+        outputs = outputs.hidden_states[-1]
+        outputs = self.adapter(outputs)
+        return outputs
 
 if __name__ == "__main__":
-    encoder = TimerEncoder(prediction_length=96)
+    encoder = TimerEncoder(encoder_path='thuml/timer-base-84m', project_dim=1024, train_mode="adapter", device="cuda")
     batch_size, lookback_length = 1, 2880
     x = torch.randn(batch_size, lookback_length).cuda()
     outputs = encoder(x)
